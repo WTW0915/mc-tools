@@ -95,7 +95,7 @@
 				<input type="text" id="particleID" value="minecraft:endrod">
 			</div>
 
-			<button id="convert" class="btn btn-primary" style="margin-top: 16px; display: none;">🔄 开始转换</button>
+			<button id="convert" class="btn btn-primary" style="margin-top: 16px;">🔄 开始转换</button>
 		</div>
 
 		<div class="preview-container">
@@ -121,7 +121,7 @@
 		sizeyScroll.onchange=e=>{preview.height=e.target.value,sizey.value=e.target.value};
 		sizey.onchange=e=>{preview.height=e.target.value,sizeyScroll.value=e.target.value};
 
-		overlay.onchange=e=>{e.target.checked?convert.style="display: inline-flex;":convert.style="display: none;"};
+		overlay.onchange=e=>{e.target.checked?convert.innerText="🔄 叠加预览":convert.innerText="🔄 开始预览"};
 		convert.onclick=()=>{flag=1,convert_args.onchange()};
 
 		convert_args.onchange=()=>{
@@ -152,7 +152,8 @@
 			e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)})
 		};
 
-		preview.onmousemove=e=>{
+		            text.oninput=()=>{flag=1,convert_args.onchange()};
+preview.onmousemove=e=>{
 			var t=getMousePos(e.target,e);
 			e.target.title=`Pos: ${t[0]},`+t[1]
 		};
