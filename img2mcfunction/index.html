@@ -23,6 +23,8 @@
 		.form-section input[type="range"] { width: 100%; }
 		.btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; justify-content: center; }
 		.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+		.progress-bar-container { width: 100%; background: var(--bg-input); border-radius: 8px; overflow: hidden; margin: 12px 0; height: 24px; }
+		.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); border-radius: 8px; transition: width 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #fff; font-weight: bold; min-width: 40px; }
 	</style>
 </head>
 <body>
@@ -175,6 +177,9 @@
 		</div>
 
 		<div id="status" class="status-message"></div>
+		<div id="progressContainer" class="progress-bar-container" style="display: none;">
+			<div id="progressBar" class="progress-bar" style="width: 0%;">0%</div>
+		</div>
 	</div>
 
 	<script>
@@ -182,6 +187,7 @@
 		var blocks;
 		var fileName;
 		var zip,functions;
+		var isConverting=false;
 
 		rWeightScroll.onchange=e=>{rWeight.value=e.target.value};
 		rWeight.onchange=e=>{rWeightScroll.value=e.target.value};
@@ -227,7 +233,8 @@
 		};
 
 		convert.onclick=()=>{
-			upload.files[0]?(document.getElementById("status").innerText="正在转换...",setTimeout(()=>{imgConvert()},50)):document.getElementById("status").innerText="请上传图片文件"
+			if(isConverting)return;
+			upload.files[0]?(document.getElementById("status").innerText="正在转换...",imgConvertAsync()):document.getElementById("status").innerText="请上传图片文件"
 		};
 
 		download.onclick=()=>{
@@ -247,26 +254,71 @@
 			},"JE"==commandPlatform.value?500:0)
 		};
 
-		imgConvert=()=>{
+		imgConvertAsync=()=>{
+			isConverting=true;
+			convert.disabled=true;
+			convert.style.opacity="0.5";
+			convert.style.cursor="not-allowed";
+			download.style="display: none;";
+			progressContainer.style="display: block;";
+			progressBar.style.width="0%";
+			progressBar.innerText="0%";
+
 			convert_preview.width=img_preview.width;
 			convert_preview.height=img_preview.height;
 			fileName=upload.files[0].name;
 			blocks=[];
-			imageData=img_preview.getContext("2d").getImageData(0,0,img_preview.width,img_preview.height);
-			for(let a=0;a<img_preview.height;a++)
-				for(let e=0;e<img_preview.width;e++){
-					var t=getBlock(imageData.data[4*(a*img_preview.width+e)]*(parseFloat(rScale.value)/100),imageData.data[4*(a*img_preview.width+e)+1]*(parseFloat(gScale.value)/100),imageData.data[4*(a*img_preview.width+e)+2]*(parseFloat(bScale.value)/100),"BE"==commandPlatform.value?paletteBE:paletteJE,"stdSqr"==fitMode.value,parseFloat(rWeight.value),parseFloat(gWeight.value),parseFloat(bWeight.value),parseFloat(caWeight.value));
-					blocks.push([e,a,imageData.data[4*(a*img_preview.width+e)+3],t.name]);
-					imageData.data[4*(a*img_preview.width+e)]=t.R;
-					imageData.data[4*(a*img_preview.width+e)+1]=t.G;
-					imageData.data[4*(a*img_preview.width+e)+2]=t.B
+			var imageData=img_preview.getContext("2d").getImageData(0,0,img_preview.width,img_preview.height);
+			var w=img_preview.width;
+			var h=img_preview.height;
+			var totalRows=h;
+			var currentRow=0;
+			var rowsPerChunk=Math.max(1,Math.min(50,Math.floor(50000/w)));
+			var palette="BE"==commandPlatform.value?paletteBE:paletteJE;
+			var useSqr="stdSqr"==fitMode.value;
+			var rW=parseFloat(rWeight.value);
+			var gW=parseFloat(gWeight.value);
+			var bW=parseFloat(bWeight.value);
+			var caW=parseFloat(caWeight.value);
+			var rS=parseFloat(rScale.value)/100;
+			var gS=parseFloat(gScale.value)/100;
+			var bS=parseFloat(bScale.value)/100;
+
+			function processChunk(){
+				var endRow=Math.min(currentRow+rowsPerChunk,totalRows);
+				for(var a=currentRow;a<endRow;a++){
+					for(var e=0;e<w;e++){
+						var idx=4*(a*w+e);
+						var t=getBlock(imageData.data[idx]*rS,imageData.data[idx+1]*gS,imageData.data[idx+2]*bS,palette,useSqr,rW,gW,bW,caW);
+						blocks.push([e,a,imageData.data[idx+3],t.name]);
+						imageData.data[idx]=t.R;
+						imageData.data[idx+1]=t.G;
+						imageData.data[idx+2]=t.B;
+					}
 				}
-			convert_preview.getContext("2d").putImageData(imageData,0,0);
-			convert_preview.style="display: block;";
-			document.getElementById("convertPreviewContainer").style="display: block;";
-			document.getElementById("status").innerText="转换完成！";
-			document.getElementById("status").className="status-message success";
-			download.style="display: inline-flex;"
+				currentRow=endRow;
+				var pct=Math.round(currentRow/totalRows*100);
+				progressBar.style.width=pct+"%";
+				progressBar.innerText=pct+"%";
+
+				if(currentRow<totalRows){
+					setTimeout(processChunk,0);
+				}else{
+					convert_preview.getContext("2d").putImageData(imageData,0,0);
+					convert_preview.style="display: block;";
+					document.getElementById("convertPreviewContainer").style="display: block;";
+					document.getElementById("status").innerText="转换完成！";
+					document.getElementById("status").className="status-message success";
+					download.style="display: inline-flex;";
+					progressContainer.style="display: none;";
+					isConverting=false;
+					convert.disabled=false;
+					convert.style.opacity="1";
+					convert.style.cursor="pointer";
+				}
+			}
+
+			processChunk();
 		};
 
 		img_preview.onmousemove=e=>{
