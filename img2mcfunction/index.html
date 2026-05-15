@@ -186,8 +186,14 @@
 		var img=new Image;
 		var blocks;
 		var fileName;
-		var zip,functions;
 		var isConverting=false;
+		var isDownloading=false;
+
+		function setProgress(pct){
+			progressBar.style.width=pct+"%";
+			progressBar.innerText=pct+"%";
+		}
+		function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
 		rWeightScroll.onchange=e=>{rWeight.value=e.target.value};
 		rWeight.onchange=e=>{rWeightScroll.value=e.target.value};
@@ -233,26 +239,130 @@
 		};
 
 		convert.onclick=()=>{
-			if(isConverting)return;
-			upload.files[0]?(document.getElementById("status").innerText="正在转换...",imgConvertAsync()):document.getElementById("status").innerText="请上传图片文件"
+			if(isConverting||isDownloading)return;
+			upload.files[0]?(status.innerText="正在转换...",imgConvertAsync()):status.innerText="请上传图片文件"
 		};
 
 		download.onclick=()=>{
+			if(isConverting||isDownloading)return;
 			if(!blocks)return alert("没有什么可下载的");
-			let l=[],i=[];
-			for(let a=0;a<img_preview.height;a+=parseFloat(yRange.value))
-				for(let e=0;e<img_preview.width;e+=parseFloat(xRange.value))
-					i[Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value))]=[],l.push(Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value)));
-			for(var e in blocks)i[Math.floor(blocks[e][0]/parseFloat(xRange.value))+","+Math.floor(blocks[e][1]/parseFloat(yRange.value))].push([blocks[e][0]%parseFloat(xRange.value),blocks[e][1]%parseFloat(yRange.value),blocks[e][3]]);
-			"BE"==commandPlatform.value&&(zip=new JSZip,functions=zip.folder("functions"));
-			guideFunction.checked&&("JE"==commandPlatform?saveAs(new Blob([`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`],{type:"text/plainText"}),"help.mcfunction"):functions.file("help.mcfunction",`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`));
-			let o=0,g=setInterval(()=>{
-				var e,a=l[o];
-				let t="";
-				for(e in i[a])t+=`setblock ${relativePos.checked?"~"+Math.round(i[a][e][0]-parseFloat(xRange.value)/2)+" ~ ~"+Math.round(i[a][e][1]-parseFloat(yRange.value)/2):Math.round(parseFloat(a.split(",")[0])*parseFloat(xRange.value)+i[a][e][0])+" ~ "+Math.round(parseFloat(a.split(",")[1])*parseFloat(yRange.value)+i[a][e][1])} ${i[a][e][2]}\n`;
-				guideCommand.checked&&(t+=l[o+1]?`tp @s ${(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[0])-parseFloat(l[o].split(",")[0]))*parseFloat(xRange.value):0)+" ~ "+(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[1])-parseFloat(l[o].split(",")[1]))*parseFloat(yRange.value):0)}\nsay 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[parseFloat(o)+1].replace(",","-")}"继续生成`:"say 生成完成！"),"JE"==commandPlatform.value?saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction"):functions.file(a.replace(",","-")+".mcfunction",t),++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))
-			},"JE"==commandPlatform.value?500:0)
+			downloadAsync();
 		};
+
+		async function downloadAsync(){
+			isDownloading=true;
+			download.disabled=true;
+			download.style.opacity="0.5";
+			convert.disabled=true;
+			convert.style.opacity="0.5";
+			progressContainer.style="display: block;";
+			status.innerText="正在准备文件...";
+			setProgress(0);
+
+			var xR=parseFloat(xRange.value);
+			var yR=parseFloat(yRange.value);
+			var isJE="JE"==commandPlatform.value;
+			var useRel=relativePos.checked;
+			var useGuide=guideFunction.checked;
+			var useGuideCmd=guideCommand.checked;
+
+			var l=[],i={};
+			for(let a=0;a<img_preview.height;a+=yR)
+				for(let e=0;e<img_preview.width;e+=xR){
+					let key=Math.floor(e/xR)+","+Math.floor(a/yR);
+					i[key]=[];
+					l.push(key);
+				}
+
+			var chunkSize=50000;
+			for(let start=0;start<blocks.length;start+=chunkSize){
+				let end=Math.min(start+chunkSize,blocks.length);
+				for(let e=start;e<end;e++){
+					let key=Math.floor(blocks[e][0]/xR)+","+Math.floor(blocks[e][1]/yR);
+					i[key].push([blocks[e][0]%xR,blocks[e][1]%yR,blocks[e][3]]);
+				}
+				setProgress(Math.round(end/blocks.length*40));
+				await sleep(0);
+			}
+
+			var zip,functions;
+			if(!isJE){
+				zip=new JSZip;
+				functions=zip.folder("functions");
+			}
+
+			if(useGuide){
+				let helpContent=`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`;
+				if(isJE){
+					saveAs(new Blob([helpContent],{type:"text/plainText"}),"help.mcfunction");
+				}else{
+					functions.file("help.mcfunction",helpContent);
+				}
+			}
+
+			for(let o=0;o<l.length;o++){
+				let a=l[o];
+				let t="";
+				let parts=a.split(",");
+				let baseX=parseFloat(parts[0]);
+				let baseY=parseFloat(parts[1]);
+				for(let e in i[a]){
+					let bx=i[a][e][0];
+					let by=i[a][e][1];
+					let bname=i[a][e][2];
+					if(useRel){
+						t+=`setblock ~${Math.round(bx-xR/2)} ~ ~${Math.round(by-yR/2)} ${bname}\n`;
+					}else{
+						t+=`setblock ${Math.round(baseX*xR+bx)} ~ ${Math.round(baseY*yR+by)} ${bname}\n`;
+					}
+				}
+				if(useGuideCmd){
+					if(l[o+1]){
+						let np=l[o+1].split(",");
+						if(useRel){
+							t+=`tp @s ~${Math.round((parseFloat(np[0])-baseX)*xR)} ~ ~${Math.round((parseFloat(np[1])-baseY)*yR)}\n`;
+						}else{
+							t+=`tp @s ${Math.round(parseFloat(np[0])*xR)} ~ ${Math.round(parseFloat(np[1])*yR)}\n`;
+						}
+						t+=`say 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[o+1].replace(",","-")}"继续生成`;
+					}else{
+						t+="say 生成完成！";
+					}
+				}
+				if(isJE){
+					saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction");
+				}else{
+					functions.file(a.replace(",","-")+".mcfunction",t);
+				}
+				setProgress(40+Math.round((o+1)/l.length*50));
+				if(isJE){
+					await sleep(500);
+				}else if(o%10===0){
+					await sleep(0);
+				}
+			}
+
+			if(!isJE){
+				status.innerText="正在打包 mcpack...";
+				setProgress(92);
+				manifestBE.header.name=fileName;
+				manifestBE.header.uuid=Math.uuid();
+				manifestBE.modules[0].uuid=Math.uuid();
+				zip.file("manifest.json",JSON.stringify(manifestBE));
+				let blob=await zip.generateAsync({type:"blob"});
+				setProgress(100);
+				saveAs(blob,fileName+".mcpack");
+			}
+
+			status.innerText="下载完成！";
+			status.className="status-message success";
+			progressContainer.style="display: none;";
+			isDownloading=false;
+			download.disabled=false;
+			download.style.opacity="1";
+			convert.disabled=false;
+			convert.style.opacity="1";
+		}
 
 		imgConvertAsync=()=>{
 			isConverting=true;
@@ -261,8 +371,7 @@
 			convert.style.cursor="not-allowed";
 			download.style="display: none;";
 			progressContainer.style="display: block;";
-			progressBar.style.width="0%";
-			progressBar.innerText="0%";
+			setProgress(0);
 
 			convert_preview.width=img_preview.width;
 			convert_preview.height=img_preview.height;
@@ -297,9 +406,7 @@
 					}
 				}
 				currentRow=endRow;
-				var pct=Math.round(currentRow/totalRows*100);
-				progressBar.style.width=pct+"%";
-				progressBar.innerText=pct+"%";
+				setProgress(Math.round(currentRow/totalRows*100));
 
 				if(currentRow<totalRows){
 					setTimeout(processChunk,0);
@@ -307,8 +414,8 @@
 					convert_preview.getContext("2d").putImageData(imageData,0,0);
 					convert_preview.style="display: block;";
 					document.getElementById("convertPreviewContainer").style="display: block;";
-					document.getElementById("status").innerText="转换完成！";
-					document.getElementById("status").className="status-message success";
+					status.innerText="转换完成！";
+					status.className="status-message success";
 					download.style="display: inline-flex;";
 					progressContainer.style="display: none;";
 					isConverting=false;
