@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<link rel="shortcut icon" type="image/x-icon" href="../favicon.ico">
+	<link rel="stylesheet" href="../styles/main.css">
+	<title>TXT指令转mcstructure | By 6小王游戏9</title>
+	<script src="../javascript/nbt.js" type="text/javascript"></script>
+	<script src="../javascript/jszip.min.js" type="text/javascript"></script>
+	<script src="../javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="../javascript/FileSaver.js" type="text/javascript"></script>
+	<script>
+		manifestBE={"format_version":0,"header":{"description":"url:https://dislink.github.io/midi2mcstructure","name":"","uuid":"","version":[0,0,1],"min_engine_version":[0,0,1]},"modules":[{"description":"","type":"data","uuid":"","version":[0,0,1]}]};
+	</script>
+	<script>
+		structureNBT={"name":"","value":{"format_version":{"type":"int","value":1},"size":{"type":"list","value":{"type":"int","value":[0,0,0]}},"structure":{"type":"compound","value":{"block_indices":{"type":"list","value":{"type":"list","value":[{"type":"int","value":[]},{"type":"int","value":[]}]}},"entities":{"type":"list","value":{"type":"end","value":[]}},"palette":{"type":"compound","value":{"default":{"type":"compound","value":{"block_palette":{"type":"list","value":{"type":"compound","value":[{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}}]}},"block_position_data":{"type":"compound","value":{}}}}}}}},"structure_world_origin":{"type":"list","value":{"type":"int","value":[0,0,0]}}}};
+		function commandBlockEntityData(command='', customName='', ticksDelay=0, auto=false, position=[0,0,0]){
+			return {"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":command},"CustomName":{"type":"string","value":customName},"TickDelay":{"type":"int","value":ticksDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":Number(auto)}}}}};
+		}
+	</script>
+	<script>
+		function parseCommands(text) {
+			return text.split('\n')
+				.map(line => {
+					let idx = line.indexOf('#');
+					if (idx !== -1) line = line.substring(0, idx);
+					return line.trim();
+				})
+				.filter(line => line.length > 0);
+		}
+	</script>
+	<style>
+		input[type="number"]{width:5rem}
+		.midi-player{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}
+		.midi-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:8px;font-size:0.9rem;font-family:var(--font-mono);cursor:pointer;transition:all var(--transition-med);border:1px solid var(--border);background:var(--bg-glass);color:var(--text);backdrop-filter:blur(8px)}
+		.midi-btn:hover{background:var(--bg-card-hover);border-color:var(--accent);transform:translateY(-2px);box-shadow:0 0 20px rgba(139,92,246,0.2)}
+		.midi-btn.primary{background:linear-gradient(135deg,var(--accent-dim),var(--accent));color:#fff;border:none}
+		.progress-wrap{display:none;margin-top:16px}
+		.progress-wrap .progress-info{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--text-muted);margin-bottom:8px}
+		.progress-wrap progress{width:100%;height:8px;border-radius:4px;background:var(--bg-input);overflow:hidden}
+		.progress-wrap progress::-webkit-progress-bar{background:var(--border);border-radius:4px}
+		.progress-wrap progress::-webkit-progress-value{background:linear-gradient(90deg,var(--accent),var(--accent-alt));border-radius:4px;transition:width 0.1s}
+		.tip{margin-top:16px;padding:14px 18px;background:var(--warn-bg);border-radius:8px;border-left:3px solid var(--warn);color:var(--warn);font-size:0.9rem}
+	</style>
+</head>
+<body>
+	<div class="page-bg-effects"></div>
+	<a href="../" class="back-link"><span class="icon">←</span> 返回工具站</a>
+
+	<header class="page-header">
+		<h1 class="page-title">📝 TXT指令 → mcstructure</h1>
+		<p class="page-desc">批量将txt文本中的指令转换为mcstructure结构文件，自动过滤 # 后面的注释内容</p>
+	</header>
+
+	<div class="page-container">
+		<div class="panel">
+			<div class="panel-title">📂 上传文件</div>
+			<label for="upload" class="file-upload-label" style="display:block;text-align:center;">
+				<span class="icon">📄</span> 选择txt文件（支持多选）
+			</label>
+			<input type="file" id="upload" accept=".txt" multiple style="display:none">
+			<div id="fileList" class="info-box" style="display:none;margin-top:16px;"></div>
+		</div>
+
+		<fieldset id="previewPanel" class="panel" style="display:none">
+			<div class="panel-title">👁️ 预览</div>
+			<select id="previewSelect" style="margin-bottom:12px;width:100%;padding:8px;border-radius:6px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);">
+				<option value="">-- 选择文件预览 --</option>
+			</select>
+			<div id="previewArea" style="border:1px solid var(--border);border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;background:var(--bg-input);font-family:var(--font-mono);font-size:0.85rem;white-space:pre-wrap;word-break:break-all;color:var(--text);">请先上传txt文件</div>
+		</fieldset>
+
+		<div class="panel">
+			<div class="panel-title">⚙️ 结构参数</div>
+			<div class="form-section">
+				<div class="form-section-title">结构尺寸</div>
+				<div class="form-row">
+					<label>x 轴延伸长度</label>
+					<input type="range" id="xLengthScroll" min="1" max="256" value="8">
+					<input type="number" id="xLength" step="1" value="8">
+					<span>block(s)</span>
+				</div>
+				<div class="form-row">
+					<label>z 轴延伸长度</label>
+					<input type="range" id="zLengthScroll" min="1" max="256" value="8">
+					<input type="number" id="zLength" step="1" value="8">
+					<span>block(s)</span>
+				</div>
+			</div>
+			<div id="heightEstimate" class="info-box" style="margin-top:16px;display:none">
+				<p>预计高度：<span></span></p>
+			</div>
+			<div class="checkbox-grid" style="margin-top:16px">
+				<div class="checkbox-row">
+					<input type="checkbox" id="autoFirst" checked>
+					<label for="autoFirst">首个命令方块设为自动执行</label>
+				</div>
+				<div class="checkbox-row">
+					<input type="checkbox" id="mergeFiles">
+					<label for="mergeFiles">合并所有文件到一个mcstructure</label>
+				</div>
+			</div>
+		</div>
+
+		<div style="text-align:center;padding:40px 0;display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+			<button id="download" class="btn btn-download" style="display:none;font-size:1rem;padding:18px 48px">
+				<span>⬇️</span> 下载 .mcpack
+			</button>
+			<button id="downloadSeparate" class="btn btn-download" style="display:none;font-size:1rem;padding:18px 48px;background:linear-gradient(135deg,#2196F3,#1976D2)">
+				<span>📦</span> 逐个下载 .mcstructure
+			</button>
+		</div>
+		<div id="status" class="status-message"></div>
+	</div>
+
+	<script>
+		let fileDataMap = {};
+		let totalCommandCount = 0;
+
+		xLengthScroll.onchange = (e) => { xLength.value = e.target.value; updateHeightEstimate(); };
+		xLength.onchange = (e) => { xLengthScroll.value = e.target.value; updateHeightEstimate(); };
+		zLengthScroll.onchange = (e) => { zLength.value = e.target.value; updateHeightEstimate(); };
+		zLength.onchange = (e) => { zLengthScroll.value = e.target.value; updateHeightEstimate(); };
+
+		function updateHeightEstimate() {
+			if (totalCommandCount) {
+				heightEstimate.style.display = 'block';
+				heightEstimate.querySelector('span').innerText = Math.ceil(totalCommandCount / (parseInt(xLength.value) * parseInt(zLength.value)));
+			}
+		}
+
+		upload.onchange = () => {
+			fileDataMap = {};
+			totalCommandCount = 0;
+			fileList.innerHTML = '';
+			previewSelect.innerHTML = '<option value="">-- 选择文件预览 --</option>';
+			previewArea.innerText = '';
+
+			if (!upload.files.length) {
+				fileList.style.display = 'none';
+				previewPanel.style.display = 'none';
+				download.style.display = 'none';
+				downloadSeparate.style.display = 'none';
+				return;
+			}
+
+			let loaded = 0;
+			const total = upload.files.length;
+
+			for (let i = 0; i < total; i++) {
+				const file = upload.files[i];
+				const fr = new FileReader();
+				fr.onload = () => {
+					const commands = parseCommands(fr.result);
+					fileDataMap[file.name] = commands;
+					totalCommandCount += commands.length;
+
+					const item = document.createElement('div');
+					item.style.cssText = 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);';
+					item.innerHTML = '<span>' + file.name + '</span><span style="color:var(--text-muted);font-size:0.85rem">' + commands.length + ' 条指令</span>';
+					fileList.appendChild(item);
+
+					const opt = document.createElement('option');
+					opt.value = file.name;
+					opt.textContent = file.name + ' (' + commands.length + ' 条)';
+					previewSelect.appendChild(opt);
+
+					loaded++;
+					if (loaded === total) {
+						fileList.style.display = 'block';
+						previewPanel.style.display = 'block';
+						download.style.display = 'inline-flex';
+						downloadSeparate.style.display = 'inline-flex';
+						updateHeightEstimate();
+						if (total === 1) {
+							previewSelect.value = file.name;
+							showPreview(file.name);
+						}
+					}
+				};
+				fr.readAsText(file);
+			}
+		};
+
+		previewSelect.onchange = () => { showPreview(previewSelect.value); };
+
+		function showPreview(fileName) {
+			if (!fileName || !fileDataMap[fileName]) {
+				previewArea.innerText = '请选择文件预览';
+				return;
+			}
+			const cmds = fileDataMap[fileName];
+			if (cmds.length === 0) {
+				previewArea.innerText = '（该文件无有效指令）';
+				return;
+			}
+			previewArea.innerText = cmds.map((c, i) => (i + 1) + '. ' + c).join('\n');
+		}
+
+		function buildStructureNBT(commands, xLen, zLen, autoFirst) {
+			let nbt = JSON.parse(JSON.stringify(structureNBT));
+			const X = xLen;
+			const Z = zLen;
+			const Y = Math.ceil(commands.length / (X * Z)) || 1;
+
+			nbt.value.size.value.value = [X, Y, Z];
+			nbt.value.structure.value.block_indices.value.value[0].value = new Array(X * Y * Z).fill(-1);
+			nbt.value.structure.value.block_indices.value.value[1].value = new Array(X * Y * Z).fill(-1);
+			nbt.value.structure.value.palette.value.default.value.block_palette.value.value[0].states.value.facing_direction.value = (!(Z - 1) ? (!(X - 1) ? 1 : 5) : 3);
+
+			let xBackward = false, zBackward = false;
+			let idx = 0;
+
+			for (let y = 0; y < Y && idx < commands.length; y++) {
+				for (let x = 0; x < X && idx < commands.length; x++) {
+					for (let z = 0; z < Z && idx < commands.length; z++) {
+						let posX = xBackward ? X - x - 1 : x;
+						let posZ = zBackward ? Z - z - 1 : z;
+						let blockIndex = Y * Z * posX + Z * y + posZ;
+
+						let paletteIndex;
+						if (x === 0 && y === 0 && z === 0) {
+							paletteIndex = 0;
+						} else if (z === Z - 1) {
+							paletteIndex = (x === X - 1) ? 1 : (xBackward ? 4 : 5);
+						} else {
+							paletteIndex = zBackward ? 2 : 3;
+						}
+
+						nbt.value.structure.value.block_indices.value.value[0].value[blockIndex] = paletteIndex;
+
+						let isFirst = (idx === 0);
+						let auto = isFirst ? autoFirst : true;
+
+						nbt.value.structure.value.palette.value.default.value.block_position_data.value[blockIndex] =
+							commandBlockEntityData(commands[idx], '', 0, auto, [posX, y, posZ]);
+
+						idx++;
+					}
+					zBackward = !zBackward;
+				}
+				xBackward = !xBackward;
+			}
+
+			return nbt;
+		}
+
+		download.onclick = () => {
+			try {
+				const xLen = parseInt(xLength.value);
+				const zLen = parseInt(zLength.value);
+				const auto = autoFirst.checked;
+				const merge = mergeFiles.checked;
+
+				let zip = new JSZip();
+
+				if (merge) {
+					let allCommands = [];
+					for (let name in fileDataMap) {
+						allCommands = allCommands.concat(fileDataMap[name]);
+					}
+					if (allCommands.length === 0) {
+						status.innerHTML = '<div class="status-message error">没有有效的指令可转换</div>';
+						return;
+					}
+					let nbtData = buildStructureNBT(allCommands, xLen, zLen, auto);
+					manifestBE.format_version = 2;
+					manifestBE.header.name = 'txt_commands';
+					manifestBE.header.uuid = Math.uuid();
+					manifestBE.header.min_engine_version = [1, 19, 0];
+					manifestBE.modules[0].uuid = Math.uuid();
+					zip.file('manifest.json', JSON.stringify(manifestBE, '', '\t'));
+					zip.folder('structures').file('txt_commands.mcstructure', nbt.writeUncompressed(nbtData, true));
+				} else {
+					manifestBE.format_version = 2;
+					manifestBE.header.uuid = Math.uuid();
+					manifestBE.header.min_engine_version = [1, 19, 0];
+					manifestBE.modules[0].uuid = Math.uuid();
+					let first = true;
+					for (let name in fileDataMap) {
+						let commands = fileDataMap[name];
+						if (commands.length === 0) continue;
+						let structName = name.replace(/\.txt$/i, '');
+						let nbtData = buildStructureNBT(commands, xLen, zLen, auto);
+						zip.folder('structures').file(structName + '.mcstructure', nbt.writeUncompressed(nbtData, true));
+						if (first) {
+							manifestBE.header.name = structName;
+							first = false;
+						}
+					}
+					zip.file('manifest.json', JSON.stringify(manifestBE, '', '\t'));
+				}
+
+				zip.generateAsync({ type: 'blob' }).then(function (content) {
+					saveAs(content, 'txt_commands.mcpack');
+					status.innerHTML = '<div class="status-message">✅ 下载成功！</div>';
+				});
+			} catch (e) {
+				status.innerHTML = '<div class="status-message error">❌ 转换失败：' + e.toString() + '</div>';
+			}
+		};
+
+		downloadSeparate.onclick = () => {
+			try {
+				const xLen = parseInt(xLength.value);
+				const zLen = parseInt(zLength.value);
+				const auto = autoFirst.checked;
+
+				for (let name in fileDataMap) {
+					let commands = fileDataMap[name];
+					if (commands.length === 0) continue;
+					let structName = name.replace(/\.txt$/i, '');
+					let nbtData = buildStructureNBT(commands, xLen, zLen, auto);
+					let blob = new Blob([nbt.writeUncompressed(nbtData, true)], { type: 'application/octet-stream' });
+					saveAs(blob, structName + '.mcstructure');
+				}
+				status.innerHTML = '<div class="status-message">✅ 下载成功！</div>';
+			} catch (e) {
+				status.innerHTML = '<div class="status-message error">❌ 转换失败：' + e.toString() + '</div>';
+			}
+		};
+	</script>
+</body>
+</html>
