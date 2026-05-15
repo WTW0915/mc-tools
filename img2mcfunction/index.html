@@ -226,10 +226,6 @@
 			img_preview.getContext("2d").drawImage(img,0,0,img.width,img.height)
 		};
 
-		convert_args.onchange=()=>{
-			document.getElementById("status").innerText="参数已改变，请"+(upload.files[0]?'点击"转换"按钮':"上传图片")+"以应用改变"
-		};
-
 		convert.onclick=()=>{
 			upload.files[0]?(document.getElementById("status").innerText="正在转换...",setTimeout(()=>{imgConvert()},50)):document.getElementById("status").innerText="请上传图片文件"
 		};
@@ -242,16 +238,12 @@
 					i[Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value))]=[],l.push(Math.floor(e/parseFloat(xRange.value))+","+Math.floor(a/parseFloat(yRange.value)));
 			for(var e in blocks)i[Math.floor(blocks[e][0]/parseFloat(xRange.value))+","+Math.floor(blocks[e][1]/parseFloat(yRange.value))].push([blocks[e][0]%parseFloat(xRange.value),blocks[e][1]%parseFloat(yRange.value),blocks[e][3]]);
 			"BE"==commandPlatform.value&&(zip=new JSZip,functions=zip.folder("functions"));
-			guideFunction.checked&&("JE"==commandPlatform?saveAs(new Blob([`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}
-say 输入/function "${l[0].replace(",","-")}"以启动`],{type:"text/plainText"}),"help.mcfunction"):functions.file("help.mcfunction",`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}
-say 输入/function "${l[0].replace(",","-")}"以启动`));
+			guideFunction.checked&&("JE"==commandPlatform?saveAs(new Blob([`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`],{type:"text/plainText"}),"help.mcfunction"):functions.file("help.mcfunction",`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`));
 			let o=0,g=setInterval(()=>{
 				var e,a=l[o];
 				let t="";
-				for(e in i[a])t+=`setblock ${relativePos.checked?"~"+Math.round(i[a][e][0]-parseFloat(xRange.value)/2)+" ~ ~"+Math.round(i[a][e][1]-parseFloat(yRange.value)/2):Math.round(parseFloat(a.split(",")[0])*parseFloat(xRange.value)+i[a][e][0])+" ~ "+Math.round(parseFloat(a.split(",")[1])*parseFloat(yRange.value)+i[a][e][1])} ${i[a][e][2]}
-`;
-				guideCommand.checked&&(t+=l[o+1]?`tp @s ${(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[0])-parseFloat(l[o].split(",")[0]))*parseFloat(xRange.value):0)+" ~ "+(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[1])-parseFloat(l[o].split(",")[1]))*parseFloat(yRange.value):0)}
-say 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[parseFloat(o)+1].replace(",","-")}"继续生成`:"say 生成完成！"),"JE"==commandPlatform.value?saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction"):functions.file(a.replace(",","-")+".mcfunction",t),++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))
+				for(e in i[a])t+=`setblock ${relativePos.checked?"~"+Math.round(i[a][e][0]-parseFloat(xRange.value)/2)+" ~ ~"+Math.round(i[a][e][1]-parseFloat(yRange.value)/2):Math.round(parseFloat(a.split(",")[0])*parseFloat(xRange.value)+i[a][e][0])+" ~ "+Math.round(parseFloat(a.split(",")[1])*parseFloat(yRange.value)+i[a][e][1])} ${i[a][e][2]}\n`;
+				guideCommand.checked&&(t+=l[o+1]?`tp @s ${(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[0])-parseFloat(l[o].split(",")[0]))*parseFloat(xRange.value):0)+" ~ "+(relativePos.checked?"~":"")+Math.round(relativePos.checked?(parseFloat(l[o+1].split(",")[1])-parseFloat(l[o].split(",")[1]))*parseFloat(yRange.value):0)}\nsay 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[parseFloat(o)+1].replace(",","-")}"继续生成`:"say 生成完成！"),"JE"==commandPlatform.value?saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction"):functions.file(a.replace(",","-")+".mcfunction",t),++o>=l.length&&(manifestBE.header.name=fileName,manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),zip.file("manifest.json",JSON.stringify(manifestBE)),zip.generateAsync({type:"blob"}).then(function(e){saveAs(e,fileName+".mcpack")}),clearInterval(g))
 			},"JE"==commandPlatform.value?500:0)
 		};
 
@@ -266,7 +258,7 @@ say 已传送至下一执行位点,请勿自行移动！请等待区块加载完
 					var t=getBlock(imageData.data[4*(a*img_preview.width+e)]*(parseFloat(rScale.value)/100),imageData.data[4*(a*img_preview.width+e)+1]*(parseFloat(gScale.value)/100),imageData.data[4*(a*img_preview.width+e)+2]*(parseFloat(bScale.value)/100),"BE"==commandPlatform.value?paletteBE:paletteJE,"stdSqr"==fitMode.value,parseFloat(rWeight.value),parseFloat(gWeight.value),parseFloat(bWeight.value),parseFloat(caWeight.value));
 					blocks.push([e,a,imageData.data[4*(a*img_preview.width+e)+3],t.name]);
 					imageData.data[4*(a*img_preview.width+e)]=t.R;
-					imageData.data[4*(a*img_preview.width+e)+2]=t.G;
+					imageData.data[4*(a*img_preview.width+e)+1]=t.G;
 					imageData.data[4*(a*img_preview.width+e)+2]=t.B
 				}
 			convert_preview.getContext("2d").putImageData(imageData,0,0);
