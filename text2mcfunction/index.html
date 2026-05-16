@@ -14,7 +14,7 @@
 	<style>
 		input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none}
 		input[type=number]{-moz-appearance:textfield}
-		textarea { width: 100%; min-height: 120px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); padding: 12px; font-family: var(--font-mono); resize: vertical; }
+		textarea { width: 100%; min-height: 120px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); padding: 12px; font-family: var(--font-mono); resize: vertical; box-sizing: border-box; }
 		textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }
 		.preview-container { text-align: center; margin: 20px 0; }
 		canvas { max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); margin: 12px auto; display: block; background: #000; }
@@ -121,19 +121,23 @@
 		sizeyScroll.onchange=e=>{preview.height=e.target.value,sizey.value=e.target.value};
 		sizey.onchange=e=>{preview.height=e.target.value,sizeyScroll.value=e.target.value};
 
-		overlay.onchange=e=>{e.target.checked?convert.innerText="🔄 叠加预览":convert.innerText="🔄 开始预览"};
-		convert.onclick=()=>{flag=1,convert_args.onchange()};
+		overlay.onchange=e=>{e.target.checked?convert.innerText="🔄 叠加预览":convert.innerText="🔄 开始转换"};
 
-		convert_args.onchange=()=>{
+		function doConvert(){
 			var e=preview.getContext("2d");
 			if(overlay.checked||(preview.height=preview.height),!overlay.checked||flag){
 				if(flag=0,e.font=font.value,e.textAlign="left",e.textBaseline="bottom",stroke.checked)
 					for(var t in e.strokeStyle="#ff0000",text.value.split("\n"))e.strokeText(text.value.split("\n")[t],0,(parseInt(t)+1)*parseInt(lineHeight.value));
 				else
 					for(var a in e.fillStyle="#ff0000",text.value.split("\n"))e.fillText(text.value.split("\n")[a],0,(parseInt(a)+1)*parseInt(lineHeight.value));
-				filled=true
+				filled=true;
+				download.style="display: inline-flex;";
+				status.innerText="预览已生成，可点击下载";
+				status.className="status-message success";
 			}
-		};
+		}
+
+		convert.onclick=()=>{flag=1,doConvert()};
 
 		download.onclick=()=>{
 			if(!filled)return alert("没有什么可下载的");
@@ -152,8 +156,9 @@
 			e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)})
 		};
 
-		            text.oninput=()=>{flag=1,convert_args.onchange()};
-preview.onmousemove=e=>{
+		text.oninput=()=>{flag=1,doConvert()};
+
+		preview.onmousemove=e=>{
 			var t=getMousePos(e.target,e);
 			e.target.title=`Pos: ${t[0]},`+t[1]
 		};
