@@ -7,9 +7,17 @@
 	<script src="../javascript/jszip.min.js" type="text/javascript"></script>
 	<script src="../javascript/FileSaver.js" type="text/javascript"></script>
 	<script src="../javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="../javascript/nbt.js" type="text/javascript"></script>
 	<script>
 		manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]};
+		manifestStructure={format_version:2,header:{description:"text2particle",name:"",uuid:"",version:[0,0,1],min_engine_version:[1,19,0]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]};
 		function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}
+	</script>
+	<script>
+		structureNBT={"name":"","value":{"format_version":{"type":"int","value":1},"size":{"type":"list","value":{"type":"int","value":[0,0,0]}},"structure":{"type":"compound","value":{"block_indices":{"type":"list","value":{"type":"list","value":[{"type":"int","value":[]},{"type":"int","value":[]}]},"entities":{"type":"list","value":{"type":"end","value":[]}},"palette":{"type":"compound","value":{"default":{"type":"compound","value":{"block_palette":{"type":"list","value":{"type":"compound","value":[{"name":{"type":"string","value":"minecraft:command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":1}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":2}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":3}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":4}}}},{"name":{"type":"string","value":"minecraft:chain_command_block"},"states":{"type":"compound","value":{"conditional_bit":{"type":"byte","value":0},"facing_direction":{"type":"int","value":5}}}}]}},"block_position_data":{"type":"compound","value":{}}}}}}}},"structure_world_origin":{"type":"list","value":{"type":"int","value":[0,0,0]}}}};
+		function commandBlockEntityData(command='',customName='',ticksDelay=0,auto=false,position=[0,0,0]){
+			return{"type":"compound","value":{"block_entity_data":{"type":"compound","value":{"id":{"type":"string","value":"CommandBlock"},"Command":{"type":"string","value":command},"CustomName":{"type":"string","value":customName},"TickDelay":{"type":"int","value":ticksDelay},"TrackOutput":{"type":"byte","value":1},"auto":{"type":"byte","value":Number(auto)}}}}};
+		}
 	</script>
 	<style>
 		input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none}
@@ -18,6 +26,8 @@
 		textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-glow); }
 		.preview-container { text-align: center; margin: 20px 0; }
 		canvas { max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); margin: 12px auto; display: block; background: #000; }
+		.download-area { text-align: center; margin-top: 24px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+		.info-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 8px 0; font-size: 0.9rem; color: var(--text-muted); }
 	</style>
 </head>
 <body>
@@ -98,14 +108,52 @@
 			<button id="convert" class="btn btn-primary" style="margin-top: 16px;">🔄 开始转换</button>
 		</div>
 
+		<div class="panel">
+			<div class="panel-title">📦 导出设置</div>
+			<div class="form-row">
+				<label>导出格式</label>
+				<select id="exportFormat">
+					<option value="mcfunction">mcfunction (命令文件)</option>
+					<option value="mcstructure">mcstructure (命令方块结构)</option>
+				</select>
+			</div>
+			<div id="structureParams" style="display:none;margin-top:12px;">
+				<div class="form-row">
+					<label>x 轴延伸长度</label>
+					<input type="range" id="structXScroll" min="1" max="64" value="8">
+					<input type="number" id="structX" step="1" value="8">
+					<span>block(s)</span>
+				</div>
+				<div class="form-row">
+					<label>z 轴延伸长度</label>
+					<input type="range" id="structZScroll" min="1" max="64" value="8">
+					<input type="number" id="structZ" step="1" value="8">
+					<span>block(s)</span>
+				</div>
+				<div class="checkbox-row">
+					<input type="checkbox" id="autoFirst" checked>
+					<label for="autoFirst">首个命令方块设为自动执行</label>
+				</div>
+				<div class="info-box">
+					命令方块将按 x→z→y 顺序排列，超出 64 格高度自动分割为多个 mcstructure 文件。
+				</div>
+			</div>
+		</div>
+
 		<div class="preview-container">
 			<h3 style="color: var(--accent); margin-bottom: 12px;">预览</h3>
 			<canvas id="preview" width="256" height="256" title="预览"></canvas>
 		</div>
 
-		<div style="text-align: center; margin-top: 24px;">
-			<button id="download" class="btn btn-download" style="display: none; font-size: 1rem; padding: 16px 40px;">
-				<span>⬇️</span> 下载文件
+		<div id="downloadArea" class="download-area" style="display: none;">
+			<button id="downloadMcfunction" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px;">
+				<span>⬇️</span> 下载 .mcpack
+			</button>
+			<button id="downloadStructurePack" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px; background: linear-gradient(135deg, #2196F3, #1976D2);">
+				<span>📦</span> 下载 .mcpack (含 mcstructure)
+			</button>
+			<button id="downloadStructureRaw" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px; background: linear-gradient(135deg, #4CAF50, #388E3C);">
+				<span>📁</span> 逐个下载 .mcstructure
 			</button>
 		</div>
 
@@ -115,11 +163,31 @@
 	<script>
 		var flag=1;
 		var filled=false;
+		var particleCommands=[];
 
 		sizexScroll.onchange=e=>{preview.width=e.target.value,sizex.value=e.target.value};
 		sizex.onchange=e=>{preview.width=e.target.value,sizexScroll.value=e.target.value};
 		sizeyScroll.onchange=e=>{preview.height=e.target.value,sizey.value=e.target.value};
 		sizey.onchange=e=>{preview.height=e.target.value,sizeyScroll.value=e.target.value};
+
+		structXScroll.onchange=e=>{structX.value=e.target.value};
+		structX.onchange=e=>{structXScroll.value=e.target.value};
+		structZScroll.onchange=e=>{structZ.value=e.target.value};
+		structZ.onchange=e=>{structZScroll.value=e.target.value};
+
+		exportFormat.onchange=()=>{
+			if(exportFormat.value==='mcstructure'){
+				structureParams.style.display='block';
+				downloadMcfunction.style.display='none';
+				downloadStructurePack.style.display='inline-flex';
+				downloadStructureRaw.style.display='inline-flex';
+			}else{
+				structureParams.style.display='none';
+				downloadMcfunction.style.display='inline-flex';
+				downloadStructurePack.style.display='none';
+				downloadStructureRaw.style.display='none';
+			}
+		};
 
 		overlay.onchange=e=>{e.target.checked?convert.innerText="🔄 叠加预览":convert.innerText="🔄 开始转换"};
 
@@ -131,30 +199,156 @@
 				else
 					for(var a in e.fillStyle="#ff0000",text.value.split("\n"))e.fillText(text.value.split("\n")[a],0,(parseInt(a)+1)*parseInt(lineHeight.value));
 				filled=true;
-				download.style="display: inline-flex;";
+				generateCommands();
+				downloadArea.style.display='flex';
+				exportFormat.onchange();
 				status.innerText="预览已生成，可点击下载";
 				status.className="status-message success";
 			}
 		}
 
+		function generateCommands(){
+			particleCommands=[];
+			var l=preview.getContext("2d").getImageData(0,0,preview.width,preview.height);
+			var lines=[[]];
+			for(let t=0;t<preview.height;t++){
+				t%parseInt(lineHeight.value)==0&&sliceByLine.checked&&(lines[Math.floor(t/parseInt(lineHeight.value))]=[]);
+				for(let e=0;e<preview.width;e++)
+					0!=l.data[4*(t*preview.width+e)]&&lines[sliceByLine.checked?Math.floor(t/parseInt(lineHeight.value)):0].push(`particle ${particleID.value} ^${((preview.width-e)*parseFloat(particleOffset.value)).toFixed(6)} ^${((preview.height-t)*parseFloat(particleOffset.value)).toFixed(6)} ^`);
+			}
+			for(var t in lines){
+				particleCommands=particleCommands.concat(lines[t]);
+			}
+		}
+
 		convert.onclick=()=>{flag=1,doConvert()};
 
-		download.onclick=()=>{
+		downloadMcfunction.onclick=()=>{downloadMcfunctionAsync()};
+		downloadStructurePack.onclick=()=>{downloadMcstructureAsync(false)};
+		downloadStructureRaw.onclick=()=>{downloadMcstructureAsync(true)};
+
+		function downloadMcfunctionAsync(){
 			if(!filled)return alert("没有什么可下载的");
-			var t,e=new JSZip,a=e.folder("functions"),l=(manifestBE.header.name=text.value+" "+font.value+(stroke.checked?"s":""),manifestBE.header.uuid=Math.uuid(),manifestBE.modules[0].uuid=Math.uuid(),e.file("manifest.json",JSON.stringify(manifestBE)),preview.getContext("2d").getImageData(0,0,preview.width,preview.height)),i=[[]];
+			var t,e=new JSZip,a=e.folder("functions");
+			manifestBE.header.name=text.value+" "+font.value+(stroke.checked?"s":"");
+			manifestBE.header.uuid=Math.uuid();
+			manifestBE.modules[0].uuid=Math.uuid();
+			e.file("manifest.json",JSON.stringify(manifestBE));
+
+			var l=preview.getContext("2d").getImageData(0,0,preview.width,preview.height);
+			var lines=[[]];
 			for(let t=0;t<preview.height;t++){
-				t%parseInt(lineHeight.value)==0&&sliceByLine.checked&&(i[Math.floor(t/parseInt(lineHeight.value))]=[]);
-				for(let e=0;e<preview.width;e++)0!=l.data[4*(t*preview.width+e)]&&i[sliceByLine.checked?Math.floor(t/parseInt(lineHeight.value)):0].push(`particle ${particleID.value} ^${((preview.width-e)*parseFloat(particleOffset.value)).toFixed(6)} ^${((preview.height-t)*parseFloat(particleOffset.value)).toFixed(6)} ^`)
+				t%parseInt(lineHeight.value)==0&&sliceByLine.checked&&(lines[Math.floor(t/parseInt(lineHeight.value))]=[]);
+				for(let e=0;e<preview.width;e++)
+					0!=l.data[4*(t*preview.width+e)]&&lines[sliceByLine.checked?Math.floor(t/parseInt(lineHeight.value)):0].push(`particle ${particleID.value} ^${((preview.width-e)*parseFloat(particleOffset.value)).toFixed(6)} ^${((preview.height-t)*parseFloat(particleOffset.value)).toFixed(6)} ^`);
 			}
-			for(t in i){
+			for(t in lines){
 				if(no_slice.checked){
-					a.file(`text${t}.mcfunction`,i[t].join("\n"))
+					a.file(`text${t}.mcfunction`,lines[t].join("\n"));
 				}else{
-					for(let e=0;e<i[t].length/1e4;e++)a.file(`text${t}${e?"-"+e:""}.mcfunction`,i[t].slice(1e4*e,1e4*(e+1)).join("\n"))
+					for(let e=0;e<lines[t].length/1e4;e++)a.file(`text${t}${e?"-"+e:""}.mcfunction`,lines[t].slice(1e4*e,1e4*(e+1)).join("\n"));
 				}
 			}
-			e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)})
-		};
+			e.generateAsync({type:"blob"}).then(function(e){saveAs(e,`${text.value} ${font.value}${stroke.checked?"s":""}.mcpack`)});
+		}
+
+		function buildParticleStructureNBT(commands,xLen,zLen,autoFirst){
+			var nbt=JSON.parse(JSON.stringify(structureNBT));
+			var X=xLen;
+			var Z=zLen;
+			var Y=Math.ceil(commands.length/(X*Z))||1;
+
+			nbt.value.size.value.value=[X,Y,Z];
+			nbt.value.structure.value.block_indices.value.value[0].value=new Array(X*Y*Z).fill(-1);
+			nbt.value.structure.value.block_indices.value.value[1].value=new Array(X*Y*Z).fill(-1);
+			nbt.value.structure.value.palette.value.default.value.block_palette.value.value[0].states.value.facing_direction.value=(!(Z-1)?(!(X-1)?1:5):3);
+
+			var xBackward=false,zBackward=false;
+			var idx=0;
+
+			for(var y=0;y<Y&&idx<commands.length;y++){
+				for(var x=0;x<X&&idx<commands.length;x++){
+					for(var z=0;z<Z&&idx<commands.length;z++){
+						var posX=xBackward?X-x-1:x;
+						var posZ=zBackward?Z-z-1:z;
+						var blockIndex=Y*Z*posX+Z*y+posZ;
+
+						var paletteIndex;
+						if(x===0&&y===0&&z===0){
+							paletteIndex=0;
+						}else if(z===Z-1){
+							paletteIndex=(x===X-1)?1:(xBackward?4:5);
+						}else{
+							paletteIndex=zBackward?2:3;
+						}
+
+						nbt.value.structure.value.block_indices.value.value[0].value[blockIndex]=paletteIndex;
+
+						var isFirst=(idx===0);
+						var auto=isFirst?autoFirst:true;
+
+						nbt.value.structure.value.palette.value.default.value.block_position_data.value[blockIndex]=
+							commandBlockEntityData(commands[idx],'',0,auto,[posX,y,posZ]);
+
+						idx++;
+					}
+					zBackward=!zBackward;
+				}
+				xBackward=!xBackward;
+			}
+
+			return nbt;
+		}
+
+		async function downloadMcstructureAsync(asRawFiles){
+			if(!filled||particleCommands.length===0)return alert("没有什么可下载的");
+
+			var xLen=parseInt(structX.value);
+			var zLen=parseInt(structZ.value);
+			var auto=autoFirst.checked;
+			var baseName=(text.value||'particle').substring(0,20).replace(/[^\w\u4e00-\u9fff]/g,'_');
+
+			var maxDim=64;
+			var cmdsPerStructure=xLen*zLen*maxDim;
+			var totalStructures=Math.ceil(particleCommands.length/cmdsPerStructure)||1;
+
+			if(asRawFiles){
+				for(var s=0;s<totalStructures;s++){
+					var start=s*cmdsPerStructure;
+					var end=Math.min(start+cmdsPerStructure,particleCommands.length);
+					var chunk=particleCommands.slice(start,end);
+					var nbtData=buildParticleStructureNBT(chunk,xLen,zLen,auto);
+					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
+					var chunkName=baseName+"_part"+s;
+					saveAs(new Blob([nbtBuffer]),chunkName+".mcstructure");
+					await new Promise(r=>setTimeout(r,300));
+				}
+				status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalStructures} 个 .mcstructure 文件</div>`;
+			}else{
+				var zip=new JSZip();
+				var structuresFolder=zip.folder("structures");
+
+				for(var s=0;s<totalStructures;s++){
+					var start=s*cmdsPerStructure;
+					var end=Math.min(start+cmdsPerStructure,particleCommands.length);
+					var chunk=particleCommands.slice(start,end);
+					var nbtData=buildParticleStructureNBT(chunk,xLen,zLen,auto);
+					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
+					var chunkName=baseName+"_part"+s;
+					structuresFolder.file(chunkName+".mcstructure",nbtBuffer);
+				}
+
+				manifestStructure.header.name=baseName;
+				manifestStructure.header.uuid=Math.uuid();
+				manifestStructure.modules[0].uuid=Math.uuid();
+				zip.file("manifest.json",JSON.stringify(manifestStructure,null,'\t'));
+
+				var blob=await zip.generateAsync({type:"blob"});
+				saveAs(blob,baseName+".mcpack");
+
+				status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalStructures} 个 mcstructure 文件<br><small>命令方块按 x→z→y 顺序排列，每结构最多 ${xLen}×${zLen}×64</small></div>`;
+			}
+		}
 
 		text.oninput=()=>{flag=1,doConvert()};
 
