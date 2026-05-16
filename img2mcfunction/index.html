@@ -144,10 +144,8 @@
 			return jeBlockToStructureEntry(trimmed);
 		}
 
-		function buildImageStructureNBT(chunkBlocks,chunkW,chunkH,placement){
-			var X,Y,Z;
-			if(placement==='vertical'){X=chunkW;Y=chunkH;Z=1;}
-			else{X=chunkW;Y=1;Z=chunkH;}
+		function buildImageStructureNBT(chunkBlocks,structX,structY,structZ){
+			var X=structX,Y=structY,Z=structZ;
 			var paletteMap={};
 			var paletteEntries=[];
 			for(var b=0;b<chunkBlocks.length;b++){
@@ -162,14 +160,10 @@
 			for(var b=0;b<chunkBlocks.length;b++){
 				var bx=chunkBlocks[b][0];
 				var by=chunkBlocks[b][1];
+				var bz=chunkBlocks[b][2];
 				var bname=chunkBlocks[b][3];
 				var pidx=paletteMap[bname];
-				var idx;
-				if(placement==='vertical'){
-					idx=Y*Z*bx+Z*by;
-				}else{
-					idx=Y*Z*bx+by;
-				}
+				var idx=Y*Z*bx+Z*by+bz;
 				layer0[idx]=pidx;
 			}
 			var nbt={
@@ -367,7 +361,7 @@
 					</select>
 				</div>
 				<div class="info-box" id="structureInfo">
-					mcstructure 每个轴最多 64 格，超出部分将自动分割为多个文件。
+					mcstructure 每个轴最多 64 格。图片会自动沿 Y 轴（平放）或 Z 轴（竖直）堆叠，尽量合并为单个文件。仅超大图片才会分割。
 				</div>
 			</div>
 		</div>
@@ -581,27 +575,43 @@
 			var maxDim=64;
 			var imgW=img_preview.width;
 			var imgH=img_preview.height;
-			var xChunks=Math.ceil(imgW/maxDim);
-			var yChunks=Math.ceil(imgH/maxDim);
+			var tileW=Math.min(imgW,maxDim);
+			var tileH=Math.min(imgH,maxDim);
+			var tilesX=Math.ceil(imgW/maxDim);
+			var tilesY=Math.ceil(imgH/maxDim);
+			var totalTiles=tilesX*tilesY;
+			var maxTilesPerStructure=maxDim;
+			var numStructures=Math.ceil(totalTiles/maxTilesPerStructure);
 			var chunks=[];
-			for(var cx=0;cx<xChunks;cx++){
-				for(var cy=0;cy<yChunks;cy++){
-					var x0=cx*maxDim;
-					var y0=cy*maxDim;
-					var x1=Math.min(x0+maxDim,imgW);
-					var y1=Math.min(y0+maxDim,imgH);
-					var chunkW=x1-x0;
-					var chunkH=y1-y0;
-					var chunkBlocks=[];
-					for(var b=0;b<blocks.length;b++){
-						if(blocks[b][0]>=x0&&blocks[b][0]<x1&&blocks[b][1]>=y0&&blocks[b][1]<y1){
-							chunkBlocks.push([blocks[b][0]-x0,blocks[b][1]-y0,blocks[b][2],blocks[b][3]]);
+			for(var s=0;s<numStructures;s++){
+				var startTile=s*maxTilesPerStructure;
+				var endTile=Math.min(startTile+maxTilesPerStructure,totalTiles);
+				var structTileCount=endTile-startTile;
+				var mappedBlocks=[];
+				for(var b=0;b<blocks.length;b++){
+					var px=blocks[b][0];
+					var py=blocks[b][1];
+					var tileIdx=Math.floor(py/maxDim)*tilesX+Math.floor(px/maxDim);
+					if(tileIdx>=startTile&&tileIdx<endTile){
+						var lx=px%maxDim;
+						var lz_or_ly=py%maxDim;
+						var localTile=tileIdx-startTile;
+						if(placement==='horizontal'){
+							mappedBlocks.push([lx,localTile,lz_or_ly,blocks[b][3]]);
+						}else{
+							mappedBlocks.push([lx,lz_or_ly,localTile,blocks[b][3]]);
 						}
 					}
-					chunks.push({cx,cy,chunkW,chunkH,chunkBlocks});
 				}
+				var structX,structY,structZ;
+				if(placement==='horizontal'){
+					structX=tileW;structY=structTileCount;structZ=tileH;
+				}else{
+					structX=tileW;structY=tileH;structZ=structTileCount;
+				}
+				chunks.push({index:s,chunkBlocks:mappedBlocks,structX,structY,structZ});
 			}
-			return{chunks,xChunks,yChunks,placement};
+			return{chunks,numStructures,placement,tilesX,tilesY};
 		}
 
 		async function downloadMcstructureAsync(asRawFiles){
@@ -614,15 +624,15 @@
 			setProgress(0);
 
 			var baseName=fileName.replace(/\.[^.]+$/,'');
-			var{chunks,xChunks,yChunks,placement}=buildStructureChunks();
+			var{chunks,numStructures,placement}=buildStructureChunks();
 			var totalChunks=chunks.length;
 
 			if(asRawFiles){
 				for(var ci=0;ci<chunks.length;ci++){
 					var c=chunks[ci];
-					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.chunkW,c.chunkH,placement);
+					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.structX,c.structY,c.structZ);
 					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
-					var chunkName=baseName+"_x"+c.cx+"_"+(placement==='vertical'?"y":"z")+c.cy;
+					var chunkName=totalChunks>1?baseName+"_part"+c.index:baseName;
 					saveAs(new Blob([nbtBuffer]),chunkName+".mcstructure");
 					setProgress(Math.round((ci+1)/totalChunks*100));
 					await sleep(300);
@@ -634,9 +644,9 @@
 
 				for(var ci=0;ci<chunks.length;ci++){
 					var c=chunks[ci];
-					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.chunkW,c.chunkH,placement);
+					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.structX,c.structY,c.structZ);
 					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
-					var chunkName=baseName+"_x"+c.cx+"_"+(placement==='vertical'?"y":"z")+c.cy;
+					var chunkName=totalChunks>1?baseName+"_part"+c.index:baseName;
 					structuresFolder.file(chunkName+".mcstructure",nbtBuffer);
 					setProgress(Math.round((ci+1)/totalChunks*80));
 					if(ci%5===0)await sleep(0);
@@ -655,9 +665,12 @@
 				saveAs(blob,baseName+".mcpack");
 
 				var placementTip=placement==='vertical'
-					?'竖直模式：每个结构文件沿 Y 轴向上堆叠'
-					:'平放模式：每个结构文件在 XZ 平面上依次排列';
-				status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalChunks} 个 mcstructure 文件（${xChunks}×${yChunks}）<br><small>${placementTip}</small></div>`;
+					?'竖直模式：图片沿 XY 平面排列，超出部分在 Z 轴堆叠'
+					:'平放模式：图片沿 XZ 平面排列，超出部分在 Y 轴堆叠';
+				var sizeInfo=totalChunks===1
+					?'所有方块已合并为 1 个 mcstructure 文件'
+					:`共 ${totalChunks} 个 mcstructure 文件（图片过大，单文件无法容纳）`;
+				status.innerHTML=`<div class="status-message success">✅ 下载完成！${sizeInfo}<br><small>${placementTip}</small></div>`;
 			}
 
 			progressContainer.style="display: none;";
