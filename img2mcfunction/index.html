@@ -209,6 +209,7 @@
 		.info-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 8px 0; font-size: 0.9rem; color: var(--text-muted); }
 		.placement-options { display: none; margin-top: 12px; }
 		.placement-options.visible { display: block; }
+		.download-area { text-align: center; margin-top: 24px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 	</style>
 </head>
 <body>
@@ -353,8 +354,8 @@
 			<div class="form-section">
 				<label>导出格式</label>
 				<select id="exportFormat">
-					<option value="mcfunction">mcfunction (mcpack / 多文件)</option>
-					<option value="mcstructure">mcstructure (mcpack 结构文件)</option>
+					<option value="mcfunction">mcfunction (命令文件)</option>
+					<option value="mcstructure">mcstructure (结构文件)</option>
 				</select>
 			</div>
 			<div id="placementOptions" class="placement-options">
@@ -378,7 +379,18 @@
 
 		<div class="btn-row">
 			<button id="convert" class="btn btn-primary" style="display: none;">🔄 开始转换</button>
-			<button id="download" class="btn btn-download" style="display: none;">⬇️ 下载文件</button>
+		</div>
+
+		<div id="downloadArea" class="download-area" style="display: none;">
+			<button id="downloadMcfunction" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px;">
+				<span>⬇️</span> 下载 .mcpack
+			</button>
+			<button id="downloadStructurePack" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px; background: linear-gradient(135deg, #2196F3, #1976D2);">
+				<span>📦</span> 下载 .mcpack (含 mcstructure)
+			</button>
+			<button id="downloadStructureRaw" class="btn btn-download" style="font-size: 1rem; padding: 16px 40px; background: linear-gradient(135deg, #4CAF50, #388E3C);">
+				<span>📁</span> 逐个下载 .mcstructure
+			</button>
 		</div>
 
 		<div id="status" class="status-message"></div>
@@ -399,12 +411,25 @@
 			progressBar.innerText=pct+"%";
 		}
 		function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+		function setAllButtons(enabled){
+			var opacity=enabled?"1":"0.5";
+			var disabled=!enabled;
+			[convert,downloadMcfunction,downloadStructurePack,downloadStructureRaw].forEach(b=>{
+				b.disabled=disabled;b.style.opacity=opacity;
+			});
+		}
 
 		exportFormat.onchange=()=>{
 			if(exportFormat.value==='mcstructure'){
 				placementOptions.classList.add('visible');
+				downloadMcfunction.style.display='none';
+				downloadStructurePack.style.display='inline-flex';
+				downloadStructureRaw.style.display='inline-flex';
 			}else{
 				placementOptions.classList.remove('visible');
+				downloadMcfunction.style.display='inline-flex';
+				downloadStructurePack.style.display='none';
+				downloadStructureRaw.style.display='none';
 			}
 		};
 
@@ -442,7 +467,7 @@
 		};
 
 		img.onload=()=>{
-			download.style="display: none;";
+			downloadArea.style.display='none';
 			img_preview.width=img.width;
 			img_preview.height=img.height;
 			img_preview.style="display: block;";
@@ -456,24 +481,17 @@
 			upload.files[0]?(status.innerText="正在转换...",imgConvertAsync()):status.innerText="请上传图片文件"
 		};
 
-		download.onclick=()=>{
-			if(isConverting||isDownloading)return;
-			if(!blocks)return alert("没有什么可下载的");
-			if(exportFormat.value==='mcstructure'){
-				downloadMcstructureAsync();
-			}else{
-				downloadMcfunctionAsync();
-			}
-		};
+		downloadMcfunction.onclick=()=>{downloadMcfunctionAsync()};
+		downloadStructurePack.onclick=()=>{downloadMcstructureAsync(false)};
+		downloadStructureRaw.onclick=()=>{downloadMcstructureAsync(true)};
 
 		async function downloadMcfunctionAsync(){
+			if(isConverting||isDownloading)return;
+			if(!blocks)return alert("没有什么可下载的");
 			isDownloading=true;
-			download.disabled=true;
-			download.style.opacity="0.5";
-			convert.disabled=true;
-			convert.style.opacity="0.5";
+			setAllButtons(false);
 			progressContainer.style="display: block;";
-			status.innerText="正在准备文件...";
+			status.innerText="正在准备 mcfunction 文件...";
 			setProgress(0);
 
 			var xR=parseFloat(xRange.value);
@@ -555,36 +573,17 @@
 			status.className="status-message success";
 			progressContainer.style="display: none;";
 			isDownloading=false;
-			download.disabled=false;
-			download.style.opacity="1";
-			convert.disabled=false;
-			convert.style.opacity="1";
+			setAllButtons(true);
 		}
 
-		async function downloadMcstructureAsync(){
-			isDownloading=true;
-			download.disabled=true;
-			download.style.opacity="0.5";
-			convert.disabled=true;
-			convert.style.opacity="0.5";
-			progressContainer.style="display: block;";
-			status.innerText="正在生成 mcstructure...";
-			setProgress(0);
-
+		function buildStructureChunks(){
 			var placement=placementMode.value;
 			var maxDim=64;
 			var imgW=img_preview.width;
 			var imgH=img_preview.height;
-			var baseName=fileName.replace(/\.[^.]+$/,'');
-
 			var xChunks=Math.ceil(imgW/maxDim);
 			var yChunks=Math.ceil(imgH/maxDim);
-			var totalChunks=xChunks*yChunks;
-
-			var zip=new JSZip();
-			var structuresFolder=zip.folder("structures");
-
-			var chunkIdx=0;
+			var chunks=[];
 			for(var cx=0;cx<xChunks;cx++){
 				for(var cy=0;cy<yChunks;cy++){
 					var x0=cx*maxDim;
@@ -593,49 +592,77 @@
 					var y1=Math.min(y0+maxDim,imgH);
 					var chunkW=x1-x0;
 					var chunkH=y1-y0;
-
 					var chunkBlocks=[];
 					for(var b=0;b<blocks.length;b++){
 						if(blocks[b][0]>=x0&&blocks[b][0]<x1&&blocks[b][1]>=y0&&blocks[b][1]<y1){
 							chunkBlocks.push([blocks[b][0]-x0,blocks[b][1]-y0,blocks[b][2],blocks[b][3]]);
 						}
 					}
-
-					var nbtData=buildImageStructureNBT(chunkBlocks,chunkW,chunkH,placement);
-					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
-					var chunkName=baseName+"_x"+cx+"_"+(placement==='vertical'?"y":"z")+cy;
-					structuresFolder.file(chunkName+".mcstructure",nbtBuffer);
-
-					chunkIdx++;
-					setProgress(Math.round(chunkIdx/totalChunks*80));
-					if(chunkIdx%5===0)await sleep(0);
+					chunks.push({cx,cy,chunkW,chunkH,chunkBlocks});
 				}
 			}
+			return{chunks,xChunks,yChunks,placement};
+		}
 
-			status.innerText="正在打包 mcpack...";
-			setProgress(85);
+		async function downloadMcstructureAsync(asRawFiles){
+			if(isConverting||isDownloading)return;
+			if(!blocks)return alert("没有什么可下载的");
+			isDownloading=true;
+			setAllButtons(false);
+			progressContainer.style="display: block;";
+			status.innerText="正在生成 mcstructure...";
+			setProgress(0);
 
-			manifestStructure.header.name=baseName;
-			manifestStructure.header.uuid=Math.uuid();
-			manifestStructure.modules[0].uuid=Math.uuid();
-			zip.file("manifest.json",JSON.stringify(manifestStructure,null,'\t'));
+			var baseName=fileName.replace(/\.[^.]+$/,'');
+			var{chunks,xChunks,yChunks,placement}=buildStructureChunks();
+			var totalChunks=chunks.length;
 
-			setProgress(90);
-			var blob=await zip.generateAsync({type:"blob"});
-			setProgress(100);
-			saveAs(blob,baseName+".mcpack");
+			if(asRawFiles){
+				for(var ci=0;ci<chunks.length;ci++){
+					var c=chunks[ci];
+					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.chunkW,c.chunkH,placement);
+					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
+					var chunkName=baseName+"_x"+c.cx+"_"+(placement==='vertical'?"y":"z")+c.cy;
+					saveAs(new Blob([nbtBuffer]),chunkName+".mcstructure");
+					setProgress(Math.round((ci+1)/totalChunks*100));
+					await sleep(300);
+				}
+				status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalChunks} 个 .mcstructure 文件</div>`;
+			}else{
+				var zip=new JSZip();
+				var structuresFolder=zip.folder("structures");
 
-			var axisLabel=placement==='vertical'?'Y':'Z';
-			var placementTip=placement==='vertical'
-				?'竖直模式：每个结构文件沿 Y 轴向上堆叠，间隔 64 格放置'
-				:'平放模式：每个结构文件在 XZ 平面上依次排列';
-			status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalChunks} 个 mcstructure 文件（${xChunks}×${yChunks}）<br><small>${placementTip}</small></div>`;
+				for(var ci=0;ci<chunks.length;ci++){
+					var c=chunks[ci];
+					var nbtData=buildImageStructureNBT(c.chunkBlocks,c.chunkW,c.chunkH,placement);
+					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
+					var chunkName=baseName+"_x"+c.cx+"_"+(placement==='vertical'?"y":"z")+c.cy;
+					structuresFolder.file(chunkName+".mcstructure",nbtBuffer);
+					setProgress(Math.round((ci+1)/totalChunks*80));
+					if(ci%5===0)await sleep(0);
+				}
+
+				status.innerText="正在打包 mcpack...";
+				setProgress(85);
+				manifestStructure.header.name=baseName;
+				manifestStructure.header.uuid=Math.uuid();
+				manifestStructure.modules[0].uuid=Math.uuid();
+				zip.file("manifest.json",JSON.stringify(manifestStructure,null,'\t'));
+
+				setProgress(90);
+				var blob=await zip.generateAsync({type:"blob"});
+				setProgress(100);
+				saveAs(blob,baseName+".mcpack");
+
+				var placementTip=placement==='vertical'
+					?'竖直模式：每个结构文件沿 Y 轴向上堆叠'
+					:'平放模式：每个结构文件在 XZ 平面上依次排列';
+				status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalChunks} 个 mcstructure 文件（${xChunks}×${yChunks}）<br><small>${placementTip}</small></div>`;
+			}
+
 			progressContainer.style="display: none;";
 			isDownloading=false;
-			download.disabled=false;
-			download.style.opacity="1";
-			convert.disabled=false;
-			convert.style.opacity="1";
+			setAllButtons(true);
 		}
 
 		imgConvertAsync=()=>{
@@ -643,7 +670,7 @@
 			convert.disabled=true;
 			convert.style.opacity="0.5";
 			convert.style.cursor="not-allowed";
-			download.style="display: none;";
+			downloadArea.style.display='none';
 			progressContainer.style="display: block;";
 			setProgress(0);
 
@@ -690,7 +717,8 @@
 					document.getElementById("convertPreviewContainer").style="display: block;";
 					status.innerText="转换完成！";
 					status.className="status-message success";
-					download.style="display: inline-flex;";
+					downloadArea.style.display='flex';
+					exportFormat.onchange();
 					progressContainer.style="display: none;";
 					isConverting=false;
 					convert.disabled=false;
