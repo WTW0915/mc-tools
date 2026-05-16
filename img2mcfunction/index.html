@@ -8,10 +8,191 @@
 	<script src="../javascript/jszip.min.js" type="text/javascript"></script>
 	<script src="../javascript/FileSaver.js" type="text/javascript"></script>
 	<script src="../javascript/Math.uuid.js" type="text/javascript"></script>
+	<script src="../javascript/nbt.js" type="text/javascript"></script>
 	<script>
 		manifestBE={format_version:1,header:{description:"url:https://dislink.github.io/img2mcfunction",name:"",uuid:"",min_engine_version:[1,13,0],version:[0,0,1]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]};
+		manifestStructure={format_version:2,header:{description:"img2mcstructure",name:"",uuid:"",version:[0,0,1],min_engine_version:[1,19,0]},modules:[{description:"",type:"data",uuid:"",version:[0,0,1]}]};
 		function getMousePos(t,e){return[Math.round(e.clientX-t.getBoundingClientRect().left*t.width/t.getBoundingClientRect().width+1),Math.round(e.clientY-t.getBoundingClientRect().top*t.height/t.getBoundingClientRect().height+1)]}
 		function getBlock(t,e,n,i,a=0,h=1,o=1,B=1,g=1){let R=1/0,u;for(var c in i)(a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0):(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B-(g?(((i[c].R-t)/(t||1)-(i[c].G-e)/(e||1))**2+((i[c].G-e)/(e||1)-(i[c].B-n)/(n||1))**2+((i[c].B-n)/(n||1)-(i[c].R-t)/(t||1))**2)*g:0))<R&&(R=a?Math.abs(i[c].R-t)*h+Math.abs(i[c].G-e)*o+Math.abs(i[c].B-n)*B:(i[c].R-t)**2*h+(i[c].G-e)**2*o+(i[c].B-n)**2*B,u=i[c]);return u}
+	</script>
+	<script>
+		var colorNames=['white','orange','magenta','light_blue','yellow','lime','pink','gray','light_gray','cyan','purple','blue','brown','green','red','black'];
+		var woodTypesOld=['oak','spruce','birch','jungle'];
+		var woodTypesNew=['acacia','dark_oak'];
+		var woodTypesAll=['oak','spruce','birch','jungle','acacia','dark_oak'];
+		var stoneTypes=['stone','granite','granite_smooth','diorite','diorite_smooth','andesite','andesite_smooth'];
+		var stoneBrickTypes=['default','mossy','cracked','chiseled'];
+		var sandstoneTypes=['default','heiroglyphs','cut','smooth'];
+		var quartzTypes=['default','chiseled','lines','smooth'];
+
+		function beBlockToStructureEntry(blockName){
+			var trimmed=blockName.trim();
+			var parts=trimmed.split(/\s+/);
+			var bname=parts[0];
+			var bdata=parts.length>1?parseInt(parts[1]):0;
+			var sName='minecraft:'+bname;
+			var states={};
+			if(['concrete','wool','stained_hardened_clay','concrete_powder'].includes(bname)){
+				states.color={type:'string',value:colorNames[bdata]||'white'};
+			}else if(bname==='glazed_terracotta'){
+				states.color={type:'string',value:colorNames[bdata]||'white'};
+				states.facing_direction={type:'int',value:2};
+			}else if(bname==='log'){
+				states.old_log_type={type:'string',value:woodTypesOld[bdata%4]||'oak'};
+				states.pillar_axis={type:'string',value:'y'};
+			}else if(bname==='log2'){
+				states.new_log_type={type:'string',value:woodTypesNew[bdata%4]||'acacia'};
+				states.pillar_axis={type:'string',value:'y'};
+			}else if(bname==='planks'){
+				states.wood_type={type:'string',value:woodTypesAll[bdata]||'oak'};
+			}else if(bname==='stone'){
+				states.stone_type={type:'string',value:stoneTypes[bdata]||'stone'};
+			}else if(bname==='stonebrick'){
+				states.stone_brick_type={type:'string',value:stoneBrickTypes[bdata]||'default'};
+			}else if(bname==='sandstone'){
+				states.sand_stone_type={type:'string',value:sandstoneTypes[bdata]||'default'};
+			}else if(bname==='red_sandstone'){
+				states.red_sand_stone_type={type:'string',value:sandstoneTypes[bdata]||'default'};
+			}else if(bname==='quartz_block'){
+				states.quartz_type={type:'string',value:quartzTypes[bdata]||'default'};
+			}
+			return{name:{type:'string',value:sName},states:{type:'compound',value:states}};
+		}
+
+		function jeBlockToStructureEntry(jeName){
+			for(var i=0;i<colorNames.length;i++){
+				var c=colorNames[i];
+				if(jeName===c+'_concrete')return{name:{type:'string',value:'minecraft:concrete'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_wool')return{name:{type:'string',value:'minecraft:wool'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_terracotta')return{name:{type:'string',value:'minecraft:stained_hardened_clay'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_glazed_terracotta')return{name:{type:'string',value:'minecraft:glazed_terracotta'},states:{type:'compound',value:{color:{type:'string',value:c},facing_direction:{type:'int',value:2}}}};
+				if(jeName===c+'_concrete_powder')return{name:{type:'string',value:'minecraft:concrete_powder'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_shulker_box')return{name:{type:'string',value:'minecraft:shulker_box'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_stained_glass')return{name:{type:'string',value:'minecraft:stained_glass'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_stained_glass_pane')return{name:{type:'string',value:'minecraft:stained_glass_pane'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_carpet')return{name:{type:'string',value:'minecraft:carpet'},states:{type:'compound',value:{color:{type:'string',value:c}}}};
+				if(jeName===c+'_bed')return{name:{type:'string',value:'minecraft:bed'},states:{type:'compound',value:{color:{type:'string',value:c},direction:{type:'int',value:2}}}};
+				if(jeName===c+'_banner')return{name:{type:'string',value:'minecraft:standing_banner'},states:{type:'compound',value:{banner_type:{type:'string',value:c}}}};
+			}
+			for(var w=0;w<woodTypesAll.length;w++){
+				var wt=woodTypesAll[w];
+				if(jeName===wt+'_planks')return{name:{type:'string',value:'minecraft:planks'},states:{type:'compound',value:{wood_type:{type:'string',value:wt}}}};
+				if(jeName===wt+'_log'){
+					if(wt==='acacia'||wt==='dark_oak')return{name:{type:'string',value:'minecraft:log2'},states:{type:'compound',value:{new_log_type:{type:'string',value:wt},pillar_axis:{type:'string',value:'y'}}}};
+					return{name:{type:'string',value:'minecraft:log'},states:{type:'compound',value:{old_log_type:{type:'string',value:wt},pillar_axis:{type:'string',value:'y'}}}};
+				}
+				if(jeName==='stripped_'+wt+'_log'){
+					if(wt==='acacia'||wt==='dark_oak')return{name:{type:'string',value:'minecraft:stripped_log2'},states:{type:'compound',value:{new_log_type:{type:'string',value:wt},pillar_axis:{type:'string',value:'y'}}}};
+					return{name:{type:'string',value:'minecraft:stripped_log'},states:{type:'compound',value:{old_log_type:{type:'string',value:wt},pillar_axis:{type:'string',value:'y'}}}};
+				}
+			}
+			if(jeName==='stone')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'stone'}}}};
+			if(jeName==='granite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'granite'}}}};
+			if(jeName==='polished_granite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'granite_smooth'}}}};
+			if(jeName==='diorite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'diorite'}}}};
+			if(jeName==='polished_diorite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'diorite_smooth'}}}};
+			if(jeName==='andesite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'andesite'}}}};
+			if(jeName==='polished_andesite')return{name:{type:'string',value:'minecraft:stone'},states:{type:'compound',value:{stone_type:{type:'string',value:'andesite_smooth'}}}};
+			if(jeName==='cobblestone')return{name:{type:'string',value:'minecraft:cobblestone'},states:{type:'compound',value:{}}};
+			if(jeName==='smooth_stone')return{name:{type:'string',value:'minecraft:smooth_stone'},states:{type:'compound',value:{}}};
+			if(jeName==='stone_bricks')return{name:{type:'string',value:'minecraft:stonebrick'},states:{type:'compound',value:{stone_brick_type:{type:'string',value:'default'}}}};
+			if(jeName==='mossy_stone_bricks')return{name:{type:'string',value:'minecraft:stonebrick'},states:{type:'compound',value:{stone_brick_type:{type:'string',value:'mossy'}}}};
+			if(jeName==='cracked_stone_bricks')return{name:{type:'string',value:'minecraft:stonebrick'},states:{type:'compound',value:{stone_brick_type:{type:'string',value:'cracked'}}}};
+			if(jeName==='chiseled_stone_bricks')return{name:{type:'string',value:'minecraft:stonebrick'},states:{type:'compound',value:{stone_brick_type:{type:'string',value:'chiseled'}}}};
+			if(jeName==='sandstone')return{name:{type:'string',value:'minecraft:sandstone'},states:{type:'compound',value:{sand_stone_type:{type:'string',value:'default'}}}};
+			if(jeName==='smooth_sandstone')return{name:{type:'string',value:'minecraft:sandstone'},states:{type:'compound',value:{sand_stone_type:{type:'string',value:'smooth'}}}};
+			if(jeName==='cut_sandstone')return{name:{type:'string',value:'minecraft:sandstone'},states:{type:'compound',value:{sand_stone_type:{type:'string',value:'cut'}}}};
+			if(jeName==='chiseled_sandstone')return{name:{type:'string',value:'minecraft:sandstone'},states:{type:'compound',value:{sand_stone_type:{type:'string',value:'heiroglyphs'}}}};
+			if(jeName==='red_sandstone')return{name:{type:'string',value:'minecraft:red_sandstone'},states:{type:'compound',value:{red_sand_stone_type:{type:'string',value:'default'}}}};
+			if(jeName==='smooth_red_sandstone')return{name:{type:'string',value:'minecraft:red_sandstone'},states:{type:'compound',value:{red_sand_stone_type:{type:'string',value:'smooth'}}}};
+			if(jeName==='quartz_block')return{name:{type:'string',value:'minecraft:quartz_block'},states:{type:'compound',value:{quartz_type:{type:'string',value:'default'}}}};
+			if(jeName==='smooth_quartz')return{name:{type:'string',value:'minecraft:quartz_block'},states:{type:'compound',value:{quartz_type:{type:'string',value:'smooth'}}}};
+			if(jeName==='chiseled_quartz_block')return{name:{type:'string',value:'minecraft:quartz_block'},states:{type:'compound',value:{quartz_type:{type:'string',value:'chiseled'}}}};
+			if(jeName==='quartz_pillar')return{name:{type:'string',value:'minecraft:quartz_block'},states:{type:'compound',value:{quartz_type:{type:'string',value:'lines'}}}};
+			if(jeName==='terracotta')return{name:{type:'string',value:'minecraft:hardened_clay'},states:{type:'compound',value:{}}};
+			if(jeName==='nether_bricks')return{name:{type:'string',value:'minecraft:nether_brick'},states:{type:'compound',value:{}}};
+			if(jeName==='red_nether_bricks')return{name:{type:'string',value:'minecraft:red_nether_brick'},states:{type:'compound',value:{}}};
+			if(jeName==='end_stone')return{name:{type:'string',value:'minecraft:end_stone'},states:{type:'compound',value:{}}};
+			if(jeName==='end_stone_bricks')return{name:{type:'string',value:'minecraft:end_brick'},states:{type:'compound',value:{}}};
+			if(jeName==='purpur_block')return{name:{type:'string',value:'minecraft:purpur_block'},states:{type:'compound',value:{}}};
+			if(jeName==='purpur_pillar')return{name:{type:'string',value:'minecraft:purpur_block'},states:{type:'compound',value:{chisel_type:{type:'string',value:'lines'}}}};
+			if(jeName==='prismarine')return{name:{type:'string',value:'minecraft:prismarine'},states:{type:'compound',value:{prismarine_block_type:{type:'string',value:'default'}}}};
+			if(jeName==='prismarine_bricks')return{name:{type:'string',value:'minecraft:prismarine'},states:{type:'compound',value:{prismarine_block_type:{type:'string',value:'bricks'}}}};
+			if(jeName==='dark_prismarine')return{name:{type:'string',value:'minecraft:prismarine'},states:{type:'compound',value:{prismarine_block_type:{type:'string',value:'dark'}}}};
+			if(jeName==='sea_lantern')return{name:{type:'string',value:'minecraft:sea_lantern'},states:{type:'compound',value:{}}};
+			if(jeName==='glowstone')return{name:{type:'string',value:'minecraft:glowstone'},states:{type:'compound',value:{}}};
+			if(jeName==='obsidian')return{name:{type:'string',value:'minecraft:obsidian'},states:{type:'compound',value:{}}};
+			if(jeName==='crying_obsidian')return{name:{type:'string',value:'minecraft:crying_obsidian'},states:{type:'compound',value:{}}};
+			if(jeName==='magma_block')return{name:{type:'string',value:'minecraft:magma'},states:{type:'compound',value:{}}};
+			if(jeName==='bone_block')return{name:{type:'string',value:'minecraft:bone_block'},states:{type:'compound',value:{}}};
+			if(jeName==='hay_block')return{name:{type:'string',value:'minecraft:hay_block'},states:{type:'compound',value:{}}};
+			if(jeName==='clay')return{name:{type:'string',value:'minecraft:clay'},states:{type:'compound',value:{}}};
+			if(jeName==='snow_block')return{name:{type:'string',value:'minecraft:snow'},states:{type:'compound',value:{}}};
+			if(jeName==='packed_ice')return{name:{type:'string',value:'minecraft:packed_ice'},states:{type:'compound',value:{}}};
+			if(jeName==='blue_ice')return{name:{type:'string',value:'minecraft:blue_ice'},states:{type:'compound',value:{}}};
+			if(jeName==='slime_block')return{name:{type:'string',value:'minecraft:slime'},states:{type:'compound',value:{}}};
+			if(jeName==='honeycomb_block')return{name:{type:'string',value:'minecraft:honeycomb_block'},states:{type:'compound',value:{}}};
+			return{name:{type:'string',value:'minecraft:'+jeName},states:{type:'compound',value:{}}};
+		}
+
+		function blockNameToStructureEntry(blockName){
+			var trimmed=blockName.trim();
+			var parts=trimmed.split(/\s+/);
+			if(parts.length>1&&!isNaN(parseInt(parts[parts.length-1]))){
+				return beBlockToStructureEntry(trimmed);
+			}
+			return jeBlockToStructureEntry(trimmed);
+		}
+
+		function buildImageStructureNBT(chunkBlocks,chunkW,chunkH,placement){
+			var X,Y,Z;
+			if(placement==='vertical'){X=chunkW;Y=chunkH;Z=1;}
+			else{X=chunkW;Y=1;Z=chunkH;}
+			var paletteMap={};
+			var paletteEntries=[];
+			for(var b=0;b<chunkBlocks.length;b++){
+				var key=chunkBlocks[b][3];
+				if(!(key in paletteMap)){
+					paletteMap[key]=paletteEntries.length;
+					paletteEntries.push(blockNameToStructureEntry(key));
+				}
+			}
+			var totalSize=X*Y*Z;
+			var layer0=new Array(totalSize).fill(-1);
+			for(var b=0;b<chunkBlocks.length;b++){
+				var bx=chunkBlocks[b][0];
+				var by=chunkBlocks[b][1];
+				var bname=chunkBlocks[b][3];
+				var pidx=paletteMap[bname];
+				var idx;
+				if(placement==='vertical'){
+					idx=Y*Z*bx+Z*by;
+				}else{
+					idx=Y*Z*bx+by;
+				}
+				layer0[idx]=pidx;
+			}
+			var nbt={
+				name:"",
+				value:{
+					format_version:{type:"int",value:1},
+					size:{type:"list",value:{type:"int",value:[X,Y,Z]}},
+					structure:{type:"compound",value:{
+						block_indices:{type:"list",value:{type:"list",value:[
+							{type:"int",value:layer0},
+							{type:"int",value:new Array(totalSize).fill(-1)}
+						]}},
+						entities:{type:"list",value:{type:"end",value:[]}},
+						palette:{type:"compound",value:{default:{type:"compound",value:{
+							block_palette:{type:"list",value:{type:"compound",value:paletteEntries}},
+							block_position_data:{type:"compound",value:{}}
+						}}}}
+					}},
+					structure_world_origin:{type:"list",value:{type:"int",value:[0,0,0]}}
+				}
+			};
+			return nbt;
+		}
 	</script>
 	<style>
 		input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none}
@@ -25,6 +206,9 @@
 		.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
 		.progress-bar-container { width: 100%; background: var(--bg-input); border-radius: 8px; overflow: hidden; margin: 12px 0; height: 24px; }
 		.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); border-radius: 8px; transition: width 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #fff; font-weight: bold; min-width: 40px; }
+		.info-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 8px 0; font-size: 0.9rem; color: var(--text-muted); }
+		.placement-options { display: none; margin-top: 12px; }
+		.placement-options.visible { display: block; }
 	</style>
 </head>
 <body>
@@ -32,7 +216,7 @@
 
 	<header class="page-header">
 		<h1 class="page-title">🖼️ 图片转 mcfunction</h1>
-		<p class="page-desc">将图片像素数据转换为 Minecraft 命令方块序列，支持 JE/BE 平台色彩映射</p>
+		<p class="page-desc">将图片像素数据转换为 Minecraft 命令方块序列或结构文件，支持 JE/BE 平台色彩映射</p>
 	</header>
 
 	<div class="page-container">
@@ -152,17 +336,38 @@
 
 		<div class="panel">
 			<div class="panel-title">命令参数</div>
-
 			<div class="form-row">
 				<label>图片 x 轴 function 分割上限</label>
 				<input type="range" id="xRange" value="96" max="98" min="1">
 				<span id="xRangeLabel">96</span>
 			</div>
-
 			<div class="form-row">
 				<label>图片 y 轴 function 分割上限</label>
 				<input type="range" id="yRange" value="96" max="98" min="1">
 				<span id="yRangeLabel">96</span>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="panel-title">📦 导出设置</div>
+			<div class="form-section">
+				<label>导出格式</label>
+				<select id="exportFormat">
+					<option value="mcfunction">mcfunction (mcpack / 多文件)</option>
+					<option value="mcstructure">mcstructure (mcpack 结构文件)</option>
+				</select>
+			</div>
+			<div id="placementOptions" class="placement-options">
+				<div class="form-section">
+					<label>摆放方式</label>
+					<select id="placementMode">
+						<option value="horizontal">平放 (XZ 平面，铺在地上)</option>
+						<option value="vertical">竖直 (XY 墙面，竖直向上)</option>
+					</select>
+				</div>
+				<div class="info-box" id="structureInfo">
+					mcstructure 每个轴最多 64 格，超出部分将自动分割为多个文件。
+				</div>
 			</div>
 		</div>
 
@@ -194,6 +399,14 @@
 			progressBar.innerText=pct+"%";
 		}
 		function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+		exportFormat.onchange=()=>{
+			if(exportFormat.value==='mcstructure'){
+				placementOptions.classList.add('visible');
+			}else{
+				placementOptions.classList.remove('visible');
+			}
+		};
 
 		rWeightScroll.onchange=e=>{rWeight.value=e.target.value};
 		rWeight.onchange=e=>{rWeightScroll.value=e.target.value};
@@ -246,10 +459,14 @@
 		download.onclick=()=>{
 			if(isConverting||isDownloading)return;
 			if(!blocks)return alert("没有什么可下载的");
-			downloadAsync();
+			if(exportFormat.value==='mcstructure'){
+				downloadMcstructureAsync();
+			}else{
+				downloadMcfunctionAsync();
+			}
 		};
 
-		async function downloadAsync(){
+		async function downloadMcfunctionAsync(){
 			isDownloading=true;
 			download.disabled=true;
 			download.style.opacity="0.5";
@@ -286,18 +503,12 @@
 			}
 
 			var zip,functions;
-			if(!isJE){
-				zip=new JSZip;
-				functions=zip.folder("functions");
-			}
+			if(!isJE){zip=new JSZip;functions=zip.folder("functions");}
 
 			if(useGuide){
 				let helpContent=`say 图片信息：宽：${img.width}  高：${img.height}    图像命令总长度：${img.width*img.height}    function文件数：${l.length}\nsay 输入/function "${l[0].replace(",","-")}"以启动`;
-				if(isJE){
-					saveAs(new Blob([helpContent],{type:"text/plainText"}),"help.mcfunction");
-				}else{
-					functions.file("help.mcfunction",helpContent);
-				}
+				if(isJE){saveAs(new Blob([helpContent],{type:"text/plainText"}),"help.mcfunction");}
+				else{functions.file("help.mcfunction",helpContent);}
 			}
 
 			for(let o=0;o<l.length;o++){
@@ -310,36 +521,22 @@
 					let bx=i[a][e][0];
 					let by=i[a][e][1];
 					let bname=i[a][e][2];
-					if(useRel){
-						t+=`setblock ~${Math.round(bx-xR/2)} ~ ~${Math.round(by-yR/2)} ${bname}\n`;
-					}else{
-						t+=`setblock ${Math.round(baseX*xR+bx)} ~ ${Math.round(baseY*yR+by)} ${bname}\n`;
-					}
+					if(useRel){t+=`setblock ~${Math.round(bx-xR/2)} ~ ~${Math.round(by-yR/2)} ${bname}\n`;}
+					else{t+=`setblock ${Math.round(baseX*xR+bx)} ~ ${Math.round(baseY*yR+by)} ${bname}\n`;}
 				}
 				if(useGuideCmd){
 					if(l[o+1]){
 						let np=l[o+1].split(",");
-						if(useRel){
-							t+=`tp @s ~${Math.round((parseFloat(np[0])-baseX)*xR)} ~ ~${Math.round((parseFloat(np[1])-baseY)*yR)}\n`;
-						}else{
-							t+=`tp @s ${Math.round(parseFloat(np[0])*xR)} ~ ${Math.round(parseFloat(np[1])*yR)}\n`;
-						}
+						if(useRel){t+=`tp @s ~${Math.round((parseFloat(np[0])-baseX)*xR)} ~ ~${Math.round((parseFloat(np[1])-baseY)*yR)}\n`;}
+						else{t+=`tp @s ${Math.round(parseFloat(np[0])*xR)} ~ ${Math.round(parseFloat(np[1])*yR)}\n`;}
 						t+=`say 已传送至下一执行位点,请勿自行移动！请等待区块加载完成后输入/function "${l[o+1].replace(",","-")}"继续生成`;
-					}else{
-						t+="say 生成完成！";
-					}
+					}else{t+="say 生成完成！";}
 				}
-				if(isJE){
-					saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction");
-				}else{
-					functions.file(a.replace(",","-")+".mcfunction",t);
-				}
+				if(isJE){saveAs(new Blob([t],{type:"text/plainText"}),a.replace(",","-")+".mcfunction");}
+				else{functions.file(a.replace(",","-")+".mcfunction",t);}
 				setProgress(40+Math.round((o+1)/l.length*50));
-				if(isJE){
-					await sleep(500);
-				}else if(o%10===0){
-					await sleep(0);
-				}
+				if(isJE){await sleep(500);}
+				else if(o%10===0){await sleep(0);}
 			}
 
 			if(!isJE){
@@ -356,6 +553,83 @@
 
 			status.innerText="下载完成！";
 			status.className="status-message success";
+			progressContainer.style="display: none;";
+			isDownloading=false;
+			download.disabled=false;
+			download.style.opacity="1";
+			convert.disabled=false;
+			convert.style.opacity="1";
+		}
+
+		async function downloadMcstructureAsync(){
+			isDownloading=true;
+			download.disabled=true;
+			download.style.opacity="0.5";
+			convert.disabled=true;
+			convert.style.opacity="0.5";
+			progressContainer.style="display: block;";
+			status.innerText="正在生成 mcstructure...";
+			setProgress(0);
+
+			var placement=placementMode.value;
+			var maxDim=64;
+			var imgW=img_preview.width;
+			var imgH=img_preview.height;
+			var baseName=fileName.replace(/\.[^.]+$/,'');
+
+			var xChunks=Math.ceil(imgW/maxDim);
+			var yChunks=Math.ceil(imgH/maxDim);
+			var totalChunks=xChunks*yChunks;
+
+			var zip=new JSZip();
+			var structuresFolder=zip.folder("structures");
+
+			var chunkIdx=0;
+			for(var cx=0;cx<xChunks;cx++){
+				for(var cy=0;cy<yChunks;cy++){
+					var x0=cx*maxDim;
+					var y0=cy*maxDim;
+					var x1=Math.min(x0+maxDim,imgW);
+					var y1=Math.min(y0+maxDim,imgH);
+					var chunkW=x1-x0;
+					var chunkH=y1-y0;
+
+					var chunkBlocks=[];
+					for(var b=0;b<blocks.length;b++){
+						if(blocks[b][0]>=x0&&blocks[b][0]<x1&&blocks[b][1]>=y0&&blocks[b][1]<y1){
+							chunkBlocks.push([blocks[b][0]-x0,blocks[b][1]-y0,blocks[b][2],blocks[b][3]]);
+						}
+					}
+
+					var nbtData=buildImageStructureNBT(chunkBlocks,chunkW,chunkH,placement);
+					var nbtBuffer=nbt.writeUncompressed(nbtData,true);
+					var chunkName=baseName+"_x"+cx+"_"+(placement==='vertical'?"y":"z")+cy;
+					structuresFolder.file(chunkName+".mcstructure",nbtBuffer);
+
+					chunkIdx++;
+					setProgress(Math.round(chunkIdx/totalChunks*80));
+					if(chunkIdx%5===0)await sleep(0);
+				}
+			}
+
+			status.innerText="正在打包 mcpack...";
+			setProgress(85);
+
+			manifestStructure.header.name=baseName;
+			manifestStructure.header.uuid=Math.uuid();
+			manifestStructure.modules[0].uuid=Math.uuid();
+			zip.file("manifest.json",JSON.stringify(manifestStructure,null,'\t'));
+
+			setProgress(90);
+			var blob=await zip.generateAsync({type:"blob"});
+			setProgress(100);
+			saveAs(blob,baseName+".mcpack");
+
+			var axisLabel=placement==='vertical'?'Y':'Z';
+			var placementTip=placement==='vertical'
+				?'竖直模式：每个结构文件沿 Y 轴向上堆叠，间隔 64 格放置'
+				:'平放模式：每个结构文件在 XZ 平面上依次排列';
+			status.innerHTML=`<div class="status-message success">✅ 下载完成！共 ${totalChunks} 个 mcstructure 文件（${xChunks}×${yChunks}）<br><small>${placementTip}</small></div>`;
 			progressContainer.style="display: none;";
 			isDownloading=false;
 			download.disabled=false;
